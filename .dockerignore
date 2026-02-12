@@ -1,0 +1,34 @@
+# Python-specific files
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+.venv
+
+# Django-specific files
+*.db  # Exclude SQLite database file (e.g., db.sqlite3)
+*.mo  # Exclude compiled message files
+
+# Source control
+.git
+.gitignore
+
+# IDE/OS specific files
+.cache
+.project
+.idea
+.pydevproject
+.idea/workspace.xml
+.DS_Store
+
+# Logs and temporary files
+*.log
+nosetests.xml
+coverage.xml
+*.cover
+
+# Sensitive environment variables/credentials
+.env
+.aws
