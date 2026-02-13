@@ -1,49 +1,75 @@
-FROM 3.15.0a6-alpine3.23
-LABEL mantainer="guilhermemuralha2016@gmail.com"
+FROM python:3.14-slim
 
-# Essa variável de ambiente é usada para controlar se o Python deve 
-# gravar arquivos de bytecode (.pyc) no disco. 1 = Não, 0 = Sim
-ENV PYTHONDONTWRITEBYTECODE 1
+LABEL maintainer="guilhermemuralha2016@gmail.com"
 
-# Define que a saída do Python será exibida imediatamente no console ou em 
-# outros dispositivos de saída, sem ser armazenada em buffer.
-# Em resumo, você verá os outputs do Python em tempo real.
-ENV PYTHONUNBUFFERED 1
+# python
+ENV PYTHONUNBUFFERED=1 \
+    # prevents python creating .pyc files
+    PYTHONDONTWRITEBYTECODE=1 \
+    \
+    # pip
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    \
+    # poetry
+    # https://python-poetry.org/docs/configuration/#using-environment-variables
+    POETRY_VERSION=2.2.0 \
+    # make poetry install to this location
+    POETRY_HOME="/opt/poetry" \
+    # make poetry create the virtual environment in the project's root
+    # it gets named `.venv`
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    # do not ask any interactive question
+    POETRY_NO_INTERACTION=1 \
+    \
+    # paths
+    # this is where our requirements + virtual environment will live
+    PYSETUP_PATH="/opt/pysetup" \
+    VENV_PATH="/opt/pysetup/.venv"
 
-# Copia a pasta "server" e "scripts" para dentro do container.
-COPY server /server
-COPY scripts /scripts
 
-# Entra na pasta djangoapp no container
+# prepend poetry and venv to path
+ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+    # deps for installing poetry
+    curl \
+    # deps for building python deps
+    build-essential
+
+# install poetry - respects $POETRY_VERSION & $POETRY_HOME
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+#install postgres dependecies
+RUN apt-get update \
+    && apt-get -y install libpq-dev gcc \
+    && pip install psycopg2
+
+# copy project requirement files here to ensure they will be cached.
+WORKDIR $PYSETUP_PATH
+COPY poetry.lock pyproject.toml ./
+
+# quicker install as runtime deps are already installed
+RUN poetry install --no-interaction --no-ansi --no-root
+
 WORKDIR /djangoapp
 
-# A porta 8000 estará disponível para conexões externas ao container
-# É a porta que vamos usar para o Django.
+# Copia o resto do projeto
+COPY djangoapp .
+COPY scripts /scripts
+
 EXPOSE 8000
 
-# RUN executa comandos em um shell dentro do container para construir a imagem. 
-# O resultado da execução do comando é armazenado no sistema de arquivos da 
-# imagem como uma nova camada.
-# Agrupar os comandos em um único RUN pode reduzir a quantidade de camadas da 
-# imagem e torná-la mais eficiente.
-RUN python -m venv /venv && \
-    /venv/bin/poetry install && \
-    adduser --disabled-password --no-create-home duser && \
-    mkdir -p /data/web/static && \
-    mkdir -p /data/web/media && \
-    chown -R duser:duser /venv && \
-    chown -R duser:duser /data/web/static && \
-    chown -R duser:duser /data/web/media && \
-    chmod -R 755 /data/web/static && \
-    chmod -R 755 /data/web/media && \
+RUN useradd -m duser && \
+    mkdir -p /data/web/static /data/web/media && \
+    chown -R duser:duser /data && \
+    chmod -R 755 /data && \
     chmod -R +x /scripts
 
-# Adiciona a pasta scripts e venv/bin 
-# no $PATH do container.
-ENV PATH="/scripts:/venv/bin:$PATH"
+ENV PATH="/scripts:$PATH"
 
-# Muda o usuário para duser
-USER duser
+USER duser              
 
-# Executa o arquivo scripts/commands.sh
 CMD ["commands.sh"]

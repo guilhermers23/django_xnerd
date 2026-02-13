@@ -1,0 +1,28 @@
+version: '5.0'
+
+services:
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - app_data:/app
+      - ./data/web/static:/data/web/static/
+      - ./data/web/media:/data/web/media/
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./dotenv_files/.env
+    depends_on:
+      - psql_db
+  psql_db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=xnerd_user
+      - POSTGRES_PASSWORD=xnerd_user_123
+      - POSTGRES_DB=database_xnerd
+
+volumes:
+  postgres_data:
+  app_data:
